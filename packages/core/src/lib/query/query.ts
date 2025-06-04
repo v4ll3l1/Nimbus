@@ -1,38 +1,39 @@
-import { z, type ZodType } from 'zod';
+import type { z, ZodType } from 'zod';
+import { CloudEvent } from '../cloudEvent/cloudEvent.ts';
+import { MessageEnvelope } from '../messageEnvelope.ts';
 
 // TODO: fix slow type issue
 
 /**
- * Zod schema for the Query.
+ * Zod schema for the Query object.
  */
 export const Query = <
-    TName extends ZodType,
-    TParams extends ZodType,
-    TMetadata extends ZodType,
+    TType extends ZodType,
+    TData extends ZodType,
+    TAuthContext extends ZodType,
 >(
-    nameType: TName,
-    paramsType: TParams,
-    metadataType: TMetadata,
+    typeType: TType,
+    dataType: TData,
+    authContextType: TAuthContext,
 ) => {
-    return z.object({
-        name: nameType,
-        metadata: metadataType,
-        params: paramsType,
-    });
+    return CloudEvent(
+        typeType,
+        MessageEnvelope(dataType, authContextType),
+    );
 };
 
 /**
- * The type of the Query.
+ * Inference type to create the Query type.
  */
 type QueryType<
-    TName extends ZodType,
-    TParams extends ZodType,
-    TMetadata extends ZodType,
-> = ReturnType<typeof Query<TName, TParams, TMetadata>>;
+    TType extends ZodType,
+    TData extends ZodType,
+    TAuthContext extends ZodType,
+> = ReturnType<typeof Query<TType, TData, TAuthContext>>;
 
 /**
- * The type of the Query.
+ * The type of the Query object.
  */
-export type Query<TName, TParams, TMetadata> = z.infer<
-    QueryType<ZodType<TName>, ZodType<TParams>, ZodType<TMetadata>>
+export type Query<TType, TData, TAuthContext> = z.infer<
+    QueryType<ZodType<TType>, ZodType<TData>, ZodType<TAuthContext>>
 >;

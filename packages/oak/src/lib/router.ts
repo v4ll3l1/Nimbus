@@ -23,49 +23,52 @@ export class NimbusOakRouter extends OakRouter {
      * Routes a POST request to a Nimbus command router.
      *
      * @param {string} path - Oak request path
-     * @param {string} commandName - Name of the command
-     * @param {ZodType} commandType - Zod type of the command
+     * @param {string} commandType - Type of the command
+     * @param {ZodType} commandSchema - Schema (ZodType) of the command
      * @param {RouteHandler} handler - Nimbus Route Handler function
      * @param {Function} onError - Optional function to customize error handling
      */
     command(
         path: string,
-        commandName: string,
-        commandType: ZodType,
+        commandType: string,
+        commandSchema: ZodType,
         handler: RouteHandler,
         onError?: (error: any, ctx: Context) => void,
     ) {
         const inputLogFunc = (input: any) => {
             getLogger().info({
                 category: 'Nimbus',
-                ...(input?.metadata?.correlationId && {
-                    correlationId: input?.metadata?.correlationId,
+                ...(input?.data?.correlationId && {
+                    correlationId: input.data.correlationId,
                 }),
                 message:
-                    `${input?.metadata?.correlationId} - [Command] ${input?.name}`,
+                    `${input?.data?.correlationId} - [Command] ${input?.type} from ${input?.source}`,
             });
         };
 
         super.post(path, async (ctx: Context) => {
             try {
-                const correlationId = ctx.state.correlationId || ulid();
+                const correlationId = ctx.state.correlationId ?? ulid();
                 const requestBody = await ctx.request.body.json();
 
                 const nimbusRouter = createRouter({
                     handlerMap: {
-                        [commandName]: {
+                        [commandType]: {
                             handler,
-                            inputType: commandType,
+                            inputType: commandSchema,
                         },
                     },
                     inputLogFunc,
                 });
 
                 const result = await nimbusRouter({
-                    name: commandName,
-                    data: requestBody,
-                    metadata: {
+                    specversion: '1.0',
+                    id: correlationId,
+                    source: ctx.request.url.toString(),
+                    type: commandType,
+                    data: {
                         correlationId: correlationId,
+                        payload: requestBody,
                         ...(ctx.state.authContext && {
                             authContext: ctx.state.authContext,
                         }),
@@ -83,32 +86,32 @@ export class NimbusOakRouter extends OakRouter {
      * Routes a GET request to a Nimbus query router.
      *
      * @param {string} path - Oak request path
-     * @param {string} queryName - Name of the query
-     * @param {ZodType} queryType - Zod type of the query
+     * @param {string} queryType - Type of the query
+     * @param {ZodType} querySchema - Schema (ZodType) of the query
      * @param {RouteHandler} handler - Nimbus Route Handler function
      * @param {Function} onError - Optional function to customize error handling
      */
     query(
         path: string,
-        queryName: string,
-        queryType: ZodType,
+        queryType: string,
+        querySchema: ZodType,
         handler: RouteHandler,
         onError?: (error: any, ctx: Context) => void,
     ) {
         const inputLogFunc = (input: any) => {
             getLogger().info({
                 category: 'Nimbus',
-                ...(input?.metadata?.correlationId && {
-                    correlationId: input?.metadata?.correlationId,
+                ...(input?.data?.correlationId && {
+                    correlationId: input.data.correlationId,
                 }),
                 message:
-                    `${input?.metadata?.correlationId} - [Query] ${input?.name}`,
+                    `${input?.data?.correlationId} - [Query] ${input?.type} from ${input?.source}`,
             });
         };
 
         super.get(path, async (ctx: Context) => {
             try {
-                const correlationId = ctx.state.correlationId || ulid();
+                const correlationId = ctx.state.correlationId ?? ulid();
                 const pathParams = (ctx as any).params;
 
                 const queryParams: Record<string, string> = {};
@@ -120,22 +123,25 @@ export class NimbusOakRouter extends OakRouter {
 
                 const nimbusRouter = createRouter({
                     handlerMap: {
-                        [queryName]: {
+                        [queryType]: {
                             handler,
-                            inputType: queryType,
+                            inputType: querySchema,
                         },
                     },
                     inputLogFunc,
                 });
 
                 const result = await nimbusRouter({
-                    name: queryName,
-                    params: {
-                        ...queryParams,
-                        ...pathParams,
-                    },
-                    metadata: {
+                    specversion: '1.0',
+                    id: correlationId,
+                    source: ctx.request.url.toString(),
+                    type: queryType,
+                    data: {
                         correlationId: correlationId,
+                        payload: {
+                            ...queryParams,
+                            ...pathParams,
+                        },
                         ...(ctx.state.authContext && {
                             authContext: ctx.state.authContext,
                         }),

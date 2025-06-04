@@ -1,15 +1,14 @@
 import { z } from 'zod';
-import { Query } from '../query/index.ts';
-import { QueryMetadata } from '../query/queryMetadata.ts';
+import { Query } from '../query/query.ts';
 import type { RouteHandler, RouteHandlerMap } from './router.ts';
 
 /**
  * Zod schema for the TestQuery.
  */
 export const TestQuery = Query(
-    z.literal('TEST_QUERY'),
+    z.literal('test.query'),
     z.object({}),
-    QueryMetadata(z.record(z.string(), z.string())),
+    z.object({}),
 );
 
 /**
@@ -36,7 +35,7 @@ export const testQueryHandler: RouteHandler<TestQuery, any> = () => {
  * The handler map for the TestQuery.
  */
 export const queryHandlerMap: RouteHandlerMap = {
-    TEST_QUERY: {
+    'test.query': {
         handler: testQueryHandler,
         inputType: TestQuery,
     },

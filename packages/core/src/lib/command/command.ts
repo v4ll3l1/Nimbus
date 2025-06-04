@@ -1,38 +1,39 @@
-import { z, type ZodType } from 'zod';
+import type { z, ZodType } from 'zod';
+import { CloudEvent } from '../cloudEvent/cloudEvent.ts';
+import { MessageEnvelope } from '../messageEnvelope.ts';
 
 // TODO: fix slow type issue
 
 /**
- * Zod schema for the Command.
+ * Zod schema for the Command object.
  */
 export const Command = <
-    TName extends ZodType,
+    TType extends ZodType,
     TData extends ZodType,
-    TMetadata extends ZodType,
+    TAuthContext extends ZodType,
 >(
-    nameType: TName,
+    typeType: TType,
     dataType: TData,
-    metadataType: TMetadata,
+    authContextType: TAuthContext,
 ) => {
-    return z.object({
-        name: nameType,
-        metadata: metadataType,
-        data: dataType,
-    });
+    return CloudEvent(
+        typeType,
+        MessageEnvelope(dataType, authContextType),
+    );
 };
 
 /**
- * The type of the Command.
+ * Inference type to create the Command type.
  */
 type CommandType<
-    TName extends ZodType,
+    TType extends ZodType,
     TData extends ZodType,
-    TMetadata extends ZodType,
-> = ReturnType<typeof Command<TName, TData, TMetadata>>;
+    TAuthContext extends ZodType,
+> = ReturnType<typeof Command<TType, TData, TAuthContext>>;
 
 /**
- * The type of the Command.
+ * The type of the Command object.
  */
-export type Command<TName, TData, TMetadata> = z.infer<
-    CommandType<ZodType<TName>, ZodType<TData>, ZodType<TMetadata>>
+export type Command<TType, TData, TAuthContext> = z.infer<
+    CommandType<ZodType<TType>, ZodType<TData>, ZodType<TAuthContext>>
 >;

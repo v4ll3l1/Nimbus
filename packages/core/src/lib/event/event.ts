@@ -1,38 +1,36 @@
 import { z, type ZodType } from 'zod';
+import { CloudEvent } from '../cloudEvent/cloudEvent.ts';
+import { MessageEnvelope } from '../messageEnvelope.ts';
 
 // TODO: fix slow type issue
 
 /**
- * Zod schema for the Event.
+ * Zod schema for the Event object.
  */
 export const Event = <
-    TName extends ZodType,
+    TType extends ZodType,
     TData extends ZodType,
-    TMetadata extends ZodType,
 >(
-    nameType: TName,
+    typeType: TType,
     dataType: TData,
-    metadataType: TMetadata,
 ) => {
-    return z.object({
-        name: nameType,
-        metadata: metadataType,
-        data: dataType,
-    });
+    return CloudEvent(
+        typeType,
+        MessageEnvelope(dataType, z.never()),
+    );
 };
 
 /**
- * The type of the Event.
+ * Inference type to create the Event type.
  */
 type EventType<
-    TName extends ZodType,
+    TType extends ZodType,
     TData extends ZodType,
-    TMetadata extends ZodType,
-> = ReturnType<typeof Event<TName, TData, TMetadata>>;
+> = ReturnType<typeof Event<TType, TData>>;
 
 /**
- * The type of the Event.
+ * The type of the Event object.
  */
-export type Event<TName, TData, TMetadata> = z.infer<
-    EventType<ZodType<TName>, ZodType<TData>, ZodType<TMetadata>>
+export type Event<TType, TData> = z.infer<
+    EventType<ZodType<TType>, ZodType<TData>>
 >;

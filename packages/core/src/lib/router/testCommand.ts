@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import { CommandMetadata } from '../command/commandMetadata.ts';
-import { Command } from '../command/index.ts';
+import { Command } from '../command/command.ts';
 import type { RouteHandler, RouteHandlerMap } from './router.ts';
 
 /**
@@ -19,9 +18,9 @@ export type TestCommandData = z.infer<typeof TestCommandData>;
  * Zod schema for the TestCommand.
  */
 export const TestCommand = Command(
-    z.literal('TEST_COMMAND'),
+    z.literal('test.command'),
     TestCommandData,
-    CommandMetadata(z.record(z.string(), z.string())),
+    z.object({}),
 );
 
 /**
@@ -41,7 +40,7 @@ export const testCommandHandler: RouteHandler<
         headers: {
             'Content-Type': 'application/json',
         },
-        data: event.data,
+        data: event.data.payload,
     });
 };
 
@@ -49,7 +48,7 @@ export const testCommandHandler: RouteHandler<
  * The handler map for the TestCommand.
  */
 export const commandHandlerMap: RouteHandlerMap = {
-    TEST_COMMAND: {
+    'test.command': {
         handler: testCommandHandler,
         inputType: TestCommand,
     },
