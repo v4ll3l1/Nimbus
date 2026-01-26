@@ -7,8 +7,8 @@ import { Exception } from './exception.ts';
 export class InvalidInputException extends Exception {
     constructor(message?: string, details?: Record<string, unknown>) {
         super(
-            'INVALID_INPUT_EXCEPTION',
-            message ?? 'The provided input is invalid',
+            'INVALID_INPUT',
+            message ?? 'Invalid input',
             details,
             400,
         );
@@ -23,10 +23,15 @@ export class InvalidInputException extends Exception {
      * @returns {InvalidInputException} The InvalidInputException.
      */
     public fromZodError(error: ZodError): InvalidInputException {
-        this.stack = error.stack;
-        this.details = {
-            issues: error.issues,
-        };
+        if (error.stack) {
+            this.stack = error.stack;
+        }
+
+        if (error.issues) {
+            this.details = {
+                issues: error.issues,
+            };
+        }
 
         return this;
     }

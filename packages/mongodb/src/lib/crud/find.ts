@@ -9,6 +9,7 @@ import type {
 } from 'mongodb';
 import type { ZodType } from 'zod';
 import { handleMongoError } from '../handleMongoError.ts';
+import { withSpan } from '../tracing.ts';
 
 /**
  * Type to define the input for the find function.
@@ -49,7 +50,7 @@ export type Find = <TData>(
  *
  * @returns {Promise<TData[]>} The found documents.
  */
-export const find: Find = async ({
+export const find: Find = <TData>({
     collection,
     filter,
     limit,
@@ -59,40 +60,44 @@ export const find: Find = async ({
     mapDocument,
     outputType,
     options,
-}) => {
-    let res: WithId<Document>[] = [];
+}: FindInput<TData>) => {
+    return withSpan('find', collection, async () => {
+        let res: WithId<Document>[] = [];
 
-    try {
-        const findRes = collection.find(filter, options);
+        try {
+            const findRes = collection.find(filter, options);
 
-        if (typeof limit !== 'undefined') {
-            findRes.limit(limit);
+            if (limit !== undefined) {
+                findRes.limit(limit);
+            }
+
+            if (skip !== undefined) {
+                findRes.skip(skip);
+            }
+
+            if (sort !== undefined) {
+                findRes.sort(sort);
+            }
+
+            if (project !== undefined) {
+                findRes.project(project);
+            }
+
+            res = await findRes.toArray();
+        } catch (error) {
+            throw handleMongoError(error);
         }
 
-        if (typeof skip !== 'undefined') {
-            findRes.skip(skip);
+        try {
+            return res.map((item) =>
+                outputType.parse(mapDocument(item))
+            ) as TData[];
+        } catch (error) {
+            const exception = error instanceof Error
+                ? new GenericException().fromError(error)
+                : new GenericException();
+
+            throw exception;
         }
-
-        if (typeof sort !== 'undefined') {
-            findRes.sort(sort);
-        }
-
-        if (typeof project !== 'undefined') {
-            findRes.project(project);
-        }
-
-        res = await findRes.toArray();
-    } catch (error) {
-        throw handleMongoError(error);
-    }
-
-    try {
-        return res.map((item) => outputType.parse(mapDocument(item)));
-    } catch (error) {
-        const exception = error instanceof Error
-            ? new GenericException().fromError(error)
-            : new GenericException();
-
-        throw exception;
-    }
+    });
 };

@@ -5,30 +5,31 @@ on:
   release:
     types: [created]
 
-permissions:
-  contents: read
-  id-token: write # The OIDC ID token is used for authentication with JSR.
-
 jobs:
   publish:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    permissions:
+      contents: read
+      id-token: write # The OIDC ID token is used for authentication with JSR.
 
-      - uses: denoland/setup-deno@v2
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
         with:
-          deno-version: v2.3.x
+          deno-version: v2
 
       - name: Publish core package
         working-directory: ./packages/core
-        run: deno publish --allow-slow-types
+        run: deno publish
 
       - name: Publish mongodb package
         working-directory: ./packages/mongodb
         run: deno publish
 
-      - name: Publish oak package
-        working-directory: ./packages/oak
+      - name: Publish hono package
+        working-directory: ./packages/hono
         run: deno publish
 
       - name: Publish utils package

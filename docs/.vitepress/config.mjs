@@ -3,7 +3,7 @@ import { defineConfig } from "vitepress";
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
     title: "Nimbus",
-    description: "A Framework to build event-driven applications in the cloud.",
+    description: "Build event-driven applications with typescript.",
     themeConfig: {
         // https://vitepress.dev/reference/default-theme-config
         logo:
@@ -33,10 +33,9 @@ export default defineConfig({
                     link: "/guide/quickstart",
                 },
                 {
-                    text: "Project Structure",
-                    link: "/guide/project-structure",
+                    text: "Observability",
+                    link: "/guide/observability",
                 },
-
                 {
                     text: "Core",
                     link: "/guide/core",
@@ -62,27 +61,31 @@ export default defineConfig({
                             link: "/guide/core/event-bus",
                         },
                         {
-                            text: "Exceptions",
-                            link: "/guide/core/exceptions",
-                        },
-                        {
                             text: "Logging",
                             link: "/guide/core/logging",
+                        },
+                        {
+                            text: "Exceptions",
+                            link: "/guide/core/exceptions",
                         },
                     ],
                 },
 
                 {
-                    text: "Oak (HTTP)",
-                    link: "/guide/oak",
+                    text: "Hono",
+                    link: "/guide/hono",
                     items: [
                         {
-                            text: "Router",
-                            link: "/guide/oak/router",
+                            text: "CorrelationID Middleware",
+                            link: "/guide/hono/correlationid",
                         },
                         {
-                            text: "Middleware",
-                            link: "/guide/oak/middleware",
+                            text: "Logger Middleware",
+                            link: "/guide/hono/logger",
+                        },
+                        {
+                            text: "onError Handler",
+                            link: "/guide/hono/on-error",
                         },
                     ],
                 },
@@ -92,12 +95,28 @@ export default defineConfig({
                     link: "/guide/mongodb",
                     items: [
                         {
+                            text: "Connection Manager",
+                            link: "/guide/mongodb/connection-manager",
+                        },
+                        {
                             text: "Repository",
                             link: "/guide/mongodb/repository",
                         },
                         {
                             text: "CRUD+",
                             link: "/guide/mongodb/crud",
+                        },
+                        {
+                            text: "MongoJSON",
+                            link: "/guide/mongodb/mongo-json",
+                        },
+                        {
+                            text: "handleMongoError",
+                            link: "/guide/mongodb/handle-mongo-error",
+                        },
+                        {
+                            text: "Deploy Collection",
+                            link: "/guide/mongodb/deploy-collection",
                         },
                     ],
                 },

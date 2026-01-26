@@ -9,6 +9,7 @@ import type {
 } from 'mongodb';
 import type { ZodType } from 'zod';
 import { handleMongoError } from '../handleMongoError.ts';
+import { withSpan } from '../tracing.ts';
 
 /**
  * Type to define the input for the findOneAndReplace function.
@@ -43,41 +44,43 @@ export type FindOneAndReplace = <TData>(
  *
  * @returns {Promise<TData>} The found and replaced document.
  */
-export const findOneAndReplace: FindOneAndReplace = async ({
+export const findOneAndReplace: FindOneAndReplace = <TData>({
     collection,
     filter,
     replacement,
     mapDocument,
     outputType,
     options,
-}) => {
-    let res: WithId<Document> | null = null;
+}: FindOneAndReplaceInput<TData>) => {
+    return withSpan('findOneAndReplace', collection, async () => {
+        let res: WithId<Document> | null = null;
 
-    try {
-        if (options) {
-            res = await collection.findOneAndReplace(
-                filter,
-                replacement,
-                options,
-            );
-        } else {
-            res = await collection.findOneAndReplace(filter, replacement);
+        try {
+            if (options) {
+                res = await collection.findOneAndReplace(
+                    filter,
+                    replacement,
+                    options,
+                );
+            } else {
+                res = await collection.findOneAndReplace(filter, replacement);
+            }
+        } catch (error) {
+            throw handleMongoError(error);
         }
-    } catch (error) {
-        throw handleMongoError(error);
-    }
 
-    if (!res) {
-        throw new NotFoundException('Document not found');
-    }
+        if (!res) {
+            throw new NotFoundException('Document not found');
+        }
 
-    try {
-        return outputType.parse(mapDocument(res));
-    } catch (error) {
-        const exception = error instanceof Error
-            ? new GenericException().fromError(error)
-            : new GenericException();
+        try {
+            return outputType.parse(mapDocument(res)) as TData;
+        } catch (error) {
+            const exception = error instanceof Error
+                ? new GenericException().fromError(error)
+                : new GenericException();
 
-        throw exception;
-    }
+            throw exception;
+        }
+    });
 };

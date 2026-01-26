@@ -1,127 +1,121 @@
+---
+prev:
+    text: "Observability"
+    link: "/guide/core/observability"
+
+next:
+    text: "Queries"
+    link: "/guide/core/queries"
+---
+
 # Commands
 
-Commands are the messages that tell your application to do something.  
-Like "Hey, create a new account with the following data".
+Commands represent write operations - intentions to change system state in the application.
+
+Commands also fit perfectly into the CQRS pattern (Command Query Responsibility Segregation), where writes and reads are separated for better scalability and maintainability. But keep it simple for your use case and needs. CQRS in an option, but not required.
 
 ::: info Example Application
-You can find the full example on GitHub [The Expense Repo](https://github.com/overlap-dev/Nimbus/tree/main/examples/the-expense)
+The examples on this page reference the hono-demo application.
 
-Check it out and run it with `deno task dev`
+You can find the full example on GitHub: [hono-demo](https://github.com/overlap-dev/Nimbus/tree/main/examples/hono-demo)
 :::
 
-## Example
+## Key Characteristics
 
-At first we define the command and the core functionality in a file called `addAccount.ts` in the `core/commands` folder. If you like you can also split the command definition and the function into separate files. Or add more functions to handle the core business logic involved when adding an account.
+-   **Write Operations**: Commands modify application state
+-   **Intent-Based**: Commands express what should happen (e.g., "AddUser", "DeleteUser")
+-   **Type-Safe**: Commands are fully typed and validated using Zod
 
-Next we add a command handler in a fille called `addAccount.handler.ts` in the `shell/commands` folder. This is the first function that is executed when the app receives this specific command.
+## Command Structure
 
-The command handler contains all the glue needed to communicate with other parts of the application and to handle all the side-effects. In this example we first call the core function to get a new account. Then we write the account to the database, we publish an event that the account was added and finally we return the account to the caller.
+A command in Nimbus follows the CloudEvents specification and consists of:
 
-::: code-group
+```typescript
+type Command<TData = unknown> = {
+    specversion: "1.0";
+    id: string;
+    correlationid: string;
+    time: string;
+    source: string;
+    type: string;
+    subject?: string;
+    data: TData;
+    datacontenttype?: string;
+    dataschema?: string;
+};
+```
 
-```typescript [Core]
-import {
-    AuthContext,
-    Command,
-    CommandMetadata,
-    InvalidInputException,
-} from "@nimbus/core";
-import { ObjectId } from "mongodb";
+| Property          | Description                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------- |
+| `specversion`     | The CloudEvents specification version (always `'1.0'`)                             |
+| `id`              | A globally unique identifier for the command                                       |
+| `correlationid`   | A unique identifier to correlate this command with related messages                |
+| `time`            | ISO 8601 timestamp when the command was created                                    |
+| `source`          | A URI reference identifying the system creating the command                        |
+| `type`            | The command type following CloudEvents naming (e.g., `at.overlap.nimbus.add-user`) |
+| `subject`         | Optional identifier for the entity the command targets                             |
+| `data`            | The command payload containing the business data                                   |
+| `datacontenttype` | Optional MIME type of the data (defaults to `application/json`)                    |
+| `dataschema`      | Optional URL to the schema the data adheres to                                     |
+
+## Command Schema
+
+Nimbus provides a base Zod schema for validating commands:
+
+```typescript
+import { commandSchema } from "@nimbus/core";
 import { z } from "zod";
-import { Account } from "../account.type.ts";
 
-// Define the data for the command
-export const AddAccountData = z.object({
-    name: z.string(),
+// Extend the base schema with your specific command type and data
+const addUserCommandSchema = commandSchema.extend({
+    type: z.literal("at.overlap.nimbus.add-user"),
+    data: z.object({
+        email: z.email(),
+        firstName: z.string(),
+        lastName: z.string(),
+    }),
 });
-export type AddAccountData = z.infer<typeof AddAccountData>;
 
-// Define the Command with it's unique name, data and metadata
-export const AddAccountCommand = Command(
-    z.literal("ADD_ACCOUNT"),
-    AddAccountData,
-    CommandMetadata(AuthContext) // You can define you own meta data type if needed
-);
-export type AddAccountCommand = z.infer<typeof AddAccountCommand>;
-
-// The core logic
-// We take the command data and the authContext and return the new account.
-//
-// Apply any important business logic here if needed.
-// For example to set the balance of the account to 0
-// or in case of a promotion add a starting balance.
-export const addAccount = (
-    data: AddAccountData,
-    authContext?: AuthContext
-): Account => {
-    if (!authContext) {
-        throw new InvalidInputException();
-    }
-
-    return {
-        _id: new ObjectId().toString(),
-        name: data.name,
-        status: "active",
-    };
-};
+type AddUserCommand = z.infer<typeof addUserCommandSchema>;
 ```
 
-```typescript [Shell]
-import { InvalidInputException, type RouteHandler } from "@nimbus/core";
-import { eventBus } from "../../../eventBus.ts";
-import { Account } from "../../core/account.type.ts";
-import {
-    addAccount,
-    AddAccountCommand,
-} from "../../core/commands/addAccount.ts";
-import { AccountAddedEvent } from "../../core/events/accountAdded.ts";
-import { accountRepository } from "../account.repository.ts";
+## Create Commands
 
-export const addAccountHandler: RouteHandler<any, Account> = async (
-    command: AddAccountCommand
-) => {
-    // Call the Core with validated and type-safe inputs.
-    // The Nimbus router takes care these are type checked and validated.
-    // Learn more about the router on the next sections of the guide.
-    let account = addAccount(command.data, command.metadata.authContext);
+You can create commands using the `createCommand()` helper:
 
-    // Write the new account to the database
-    try {
-        account = await accountRepository.insertOne({ item: account });
-    } catch (error: any) {
-        if (error.message.startsWith("E11000")) {
-            throw new InvalidInputException("Account already exists", {
-                errorCode: "ACCOUNT_ALREADY_EXISTS",
-                reason: "An account with the same name already exists",
-            });
-        }
+```typescript
+import { createCommand } from "@nimbus/core";
+import { AddUserCommand } from "./addUser.command.ts";
 
-        throw error;
-    }
+const commandForJane = createCommand<AddUserCommand>({
+    type: "at.overlap.nimbus.add-user",
+    source: "nimbus.overlap.at",
+    data: {
+        email: "jane@example.com",
+        firstName: "Jane",
+        lastName: "Doe",
+    },
+});
 
-    // We want to publish an event that the account was added
-    // See more about events in the next section of the guide
-    eventBus.putEvent<AccountAddedEvent>({
-        name: "ACCOUNT_ADDED",
-        data: {
-            account: account,
-        },
-        metadata: {
-            correlationId: command.metadata.correlationId,
-            authContext: command.metadata.authContext,
-        },
-    });
-
-    // Return the successful result
-    return {
-        statusCode: 200,
-        data: account,
-    };
-};
+const commandForJohn = createCommand<AddUserCommand>({
+    type: "at.overlap.nimbus.add-user",
+    source: "nimbus.overlap.at",
+    data: {
+        email: "john@example.com",
+        firstName: "John",
+        lastName: "Doe",
+    },
+});
 ```
 
-:::
+The `createCommand()` helper automatically generates default values for:
 
-## Receive and Route Commands
+-   `id` - A unique ULID
+-   `correlationid` - A unique ULID (if not provided)
+-   `time` - Current ISO timestamp
+-   `specversion` - Always `'1.0'`
+-   `datacontenttype` - Defaults to `'application/json'`
 
-Learn more about how to receive and route commands in the [Router](/guide/core/router.md) guide.
+## Routing Commands
+
+Commands are routed to handlers using the [MessageRouter](/guide/core/router). See the Router documentation for details on registering handlers and routing messages.

@@ -9,6 +9,7 @@ import type {
 } from 'mongodb';
 import type { ZodType } from 'zod';
 import { handleMongoError } from '../handleMongoError.ts';
+import { withSpan } from '../tracing.ts';
 
 /**
  * Type to define the input for the findOneAndUpdate function.
@@ -43,37 +44,43 @@ export type FindOneAndUpdate = <TData>(
  *
  * @returns {Promise<TData>} The found and updated document.
  */
-export const findOneAndUpdate: FindOneAndUpdate = async ({
+export const findOneAndUpdate: FindOneAndUpdate = <TData>({
     collection,
     filter,
     update,
     mapDocument,
     outputType,
     options,
-}) => {
-    let res: WithId<Document> | null = null;
+}: FindOneAndUpdateInput<TData>) => {
+    return withSpan('findOneAndUpdate', collection, async () => {
+        let res: WithId<Document> | null = null;
 
-    try {
-        if (options) {
-            res = await collection.findOneAndUpdate(filter, update, options);
-        } else {
-            res = await collection.findOneAndUpdate(filter, update);
+        try {
+            if (options) {
+                res = await collection.findOneAndUpdate(
+                    filter,
+                    update,
+                    options,
+                );
+            } else {
+                res = await collection.findOneAndUpdate(filter, update);
+            }
+        } catch (error) {
+            throw handleMongoError(error);
         }
-    } catch (error) {
-        throw handleMongoError(error);
-    }
 
-    if (!res) {
-        throw new NotFoundException('Document not found');
-    }
+        if (!res) {
+            throw new NotFoundException('Document not found');
+        }
 
-    try {
-        return outputType.parse(mapDocument(res));
-    } catch (error) {
-        const exception = error instanceof Error
-            ? new GenericException().fromError(error)
-            : new GenericException();
+        try {
+            return outputType.parse(mapDocument(res)) as TData;
+        } catch (error) {
+            const exception = error instanceof Error
+                ? new GenericException().fromError(error)
+                : new GenericException();
 
-        throw exception;
-    }
+            throw exception;
+        }
+    });
 };

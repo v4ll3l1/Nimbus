@@ -1,74 +1,164 @@
+---
+prev:
+    text: "Queries"
+    link: "/guide/core/queries"
+
+next:
+    text: "Router"
+    link: "/guide/core/router"
+---
+
 # Events
 
-Events are the messages that tell your application something has happened.  
-Like "Hey, the account with the ID 1234 has been updated".
+Events represent facts - things that have already happened in the system.
+
+Events are immutable records of state changes that occurred in the application. They enable event-driven architectures, event sourcing, and asynchronous processing.
 
 ::: info Example Application
-You can find the full example on GitHub [The Expense Repo](https://github.com/overlap-dev/Nimbus/tree/main/examples/the-expense)
+The examples on this page reference the hono-demo application.
 
-Check it out and run it with `deno task dev`
+You can find the full example on GitHub: [hono-demo](https://github.com/overlap-dev/Nimbus/tree/main/examples/hono-demo)
 :::
 
-## Example
+## Key Characteristics
 
-At first we define the event in a file called `accountAdded.ts` in the `core/events` folder.
+-   **Immutable Facts**: Events represent things that already happened and cannot be changed
+-   **Past Tense**: Event names use past tense (e.g., "UserAdded", not "AddUser")
+-   **Observable**: Other parts of the system can subscribe and react to events
+-   **Type-Safe**: Events are fully typed and validated using Zod
 
-Next we create an event handler function in a fille called `accountAdded.handler.ts` in the `shell/events` folder. This is the first function that is executed when the app receives this specific event.
+## Event Structure
 
-The event handler contains all the glue needed to communicate with other parts of the application and to handle all the side-effects. In this example we simply wait a second and log an info to the console.
+An event in Nimbus follows the CloudEvents specification and consists of:
 
-::: code-group
-
-```typescript [Core]
-import { AuthContext, Event, EventMetadata } from "@nimbus/core";
-import { z } from "zod";
-import { Account } from "../account.type.ts";
-
-// Define the data for the event
-export const AccountAddedData = z.object({
-    account: Account,
-});
-export type AccountAddedData = z.infer<typeof AccountAddedData>;
-
-// Define the Event with it's unique name, data and metadata
-export const AccountAddedEvent = Event(
-    z.literal("ACCOUNT_ADDED"),
-    AccountAddedData,
-    EventMetadata(AuthContext) // You can define you own meta data type if needed
-);
-export type AccountAddedEvent = z.infer<typeof AccountAddedEvent>;
-```
-
-```typescript [Shell]
-import { getLogger, RouteHandler } from "@nimbus/core";
-import {
-    AccountAddedData,
-    AccountAddedEvent,
-} from "../../core/events/accountAdded.ts";
-
-export const accountAddedHandler: RouteHandler<
-    AccountAddedEvent,
-    AccountAddedData
-> = async (event) => {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    getLogger().info({
-        message: `New account was added: ${event.data.account.name}`,
-    });
-
-    // This is just an example.
-    // Change the code to do what has to be done after an account got added.
-    // For example send a mail to the owner.
-
-    return {
-        statusCode: 200,
-        data: event.data,
-    };
+```typescript
+type Event<TData = unknown> = {
+    specversion: "1.0";
+    id: string;
+    correlationid: string;
+    time: string;
+    source: string;
+    type: string;
+    subject: string;
+    data: TData;
+    datacontenttype?: string;
+    dataschema?: string;
 };
 ```
 
-:::
+| Property          | Description                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------- |
+| `specversion`     | The CloudEvents specification version (always `'1.0'`)                             |
+| `id`              | A globally unique identifier for the event                                         |
+| `correlationid`   | A unique identifier to correlate this event with related messages                  |
+| `time`            | ISO 8601 timestamp when the event was created                                      |
+| `source`          | A URI reference identifying the system creating the event                          |
+| `type`            | The event type following CloudEvents naming (e.g., `at.overlap.nimbus.user-added`) |
+| `subject`         | An identifier for the entity the event is about (e.g., `/users/123`)               |
+| `data`            | The event payload containing the business data                                     |
+| `datacontenttype` | Optional MIME type of the data (defaults to `application/json`)                    |
+| `dataschema`      | Optional URL to the schema the data adheres to                                     |
 
-## Publish and Subscribe to Events
+## Event Subjects
 
-Learn more about how to publish and subscribe to events in the [Event Bus](/guide/core/event-bus.md) guide.
+Unlike commands and queries, events **require** a `subject` field.  
+Events use subjects to organize and identify the entities they relate to:
+
+```typescript
+// Subject examples
+"/users/123"; // Specific user
+"/orders/456"; // Specific order
+"/users/123/orders/456"; // Order belonging to a user
+```
+
+## Event Schema
+
+Nimbus provides a base Zod schema for validating events:
+
+```typescript
+import { eventSchema } from "@nimbus/core";
+import { z } from "zod";
+
+// Extend the base schema with your specific event type and data
+const userAddedEventSchema = eventSchema.extend({
+    type: z.literal("at.overlap.nimbus.user-added"),
+    data: z.object({
+        _id: z.string(),
+        email: z.string(),
+        firstName: z.string(),
+        lastName: z.string(),
+    }),
+});
+
+type UserAddedEvent = z.infer<typeof userAddedEventSchema>;
+```
+
+## Create Events
+
+You can create events using the `createEvent()` helper:
+
+```typescript
+import { createEvent } from "@nimbus/core";
+import { UserAddedEvent } from "./userAdded.event.ts";
+
+const event = createEvent<UserAddedEvent>({
+    type: "at.overlap.nimbus.user-added",
+    source: "nimbus.overlap.at",
+    correlationid: command.correlationid,
+    subject: `/users/${userState._id}`,
+    data: userState,
+});
+```
+
+The `createEvent()` helper automatically generates default values for:
+
+-   `id` - A unique ULID
+-   `correlationid` - A unique ULID (if not provided)
+-   `time` - Current ISO timestamp
+-   `specversion` - Always `'1.0'`
+-   `datacontenttype` - Defaults to `'application/json'`
+
+## Best Practices
+
+### Use Past Tense Names
+
+Event names should describe what happened, not what should happen:
+
+```typescript
+// ✅ Good - Past tense
+UserAddedEvent;
+OrderShippedEvent;
+PaymentProcessedEvent;
+
+// ❌ Bad - Imperative
+AddUserEvent;
+ShipOrderEvent;
+ProcessPaymentEvent;
+```
+
+### Propagate Correlation IDs
+
+Always pass correlation IDs from commands to events for tracing:
+
+```typescript
+const event = createEvent<UserAddedEvent>({
+    type: USER_ADDED_EVENT_TYPE,
+    source: "nimbus.overlap.at",
+    correlationid: command.correlationid, // Always propagate
+    data: state,
+});
+```
+
+### Use Meaningful Subjects
+
+Subjects should be hierarchical and meaningful:
+
+```typescript
+// ✅ Good - Hierarchical and clear
+`/users/${userId}``/users/${userId}/orders/${orderId}``/organizations/${orgId}/members/${memberId}` // ❌ Bad - Flat and unclear
+`user-${userId}``order_${orderId}`;
+```
+
+## Publish & Subscribe Events
+
+Events are published and subscribed to using the [EventBus](/guide/core/event-bus). See the EventBus documentation for details on publishing and subscribing to events.
