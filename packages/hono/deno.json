@@ -1,6 +1,6 @@
 {
   "name": "@nimbus/hono",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "license": "MIT",
   "author": "Daniel Gördes <d.goerdes@overlap.at> (https://overlap.at)",
   "repository": {
@@ -13,7 +13,9 @@
   "homepage": "https://nimbus.overlap.at",
   "exports": "./src/index.ts",
   "fmt": {
-    "include": ["src/"],
+    "include": [
+      "src/"
+    ],
     "useTabs": false,
     "lineWidth": 80,
     "indentWidth": 4,
@@ -22,13 +24,19 @@
     "proseWrap": "always"
   },
   "lint": {
-    "include": ["src/"],
+    "include": [
+      "src/"
+    ],
     "rules": {
-      "exclude": ["no-explicit-any"]
+      "exclude": [
+        "no-explicit-any"
+      ]
     }
   },
   "test": {
-    "include": ["src/"]
+    "include": [
+      "src/"
+    ]
   },
   "imports": {
     "@opentelemetry/api": "npm:@opentelemetry/api@^1.9.0",
